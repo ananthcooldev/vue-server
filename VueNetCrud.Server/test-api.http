@@ -1,0 +1,124 @@
+### Variables
+@baseUrl = https://localhost:7200
+@token = 
+
+### ============================================
+### AUTHENTICATION
+### ============================================
+
+### Login to get JWT token
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "admin",
+  "password": "123"
+}
+
+### ============================================
+### ITEMS API (Requires Authentication)
+### ============================================
+
+### Get all items
+GET {{baseUrl}}/api/items
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### Get item by ID
+GET {{baseUrl}}/api/items/1
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### Create a new item
+POST {{baseUrl}}/api/items
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "Test Item",
+  "description": "This is a test item description"
+}
+
+###
+
+### Update item by ID
+PUT {{baseUrl}}/api/items/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "Updated Item Name",
+  "description": "Updated description"
+}
+
+###
+
+### Delete item by ID
+DELETE {{baseUrl}}/api/items/1
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### Test Error endpoint (No Auth Required)
+GET {{baseUrl}}/api/items/TestError
+Accept: application/json
+
+###
+
+### ============================================
+### PRODUCTS API
+### ============================================
+
+### Get all products
+GET {{baseUrl}}/api/product
+Accept: application/json
+
+###
+
+### Get product by ID
+GET {{baseUrl}}/api/product/1
+Accept: application/json
+
+###
+
+### Create a new product
+POST {{baseUrl}}/api/product
+Content-Type: application/json
+Accept: application/json
+
+{
+  "id": 0,
+  "name": "Sample Product",
+  "price": 99.99,
+  "category": "Electronics"
+}
+
+###
+
+### Update product by ID
+PUT {{baseUrl}}/api/product/1
+Content-Type: application/json
+Accept: application/json
+
+{
+  "id": 1,
+  "name": "Updated Product Name",
+  "price": 149.99,
+  "category": "Electronics"
+}
+
+###
+
+### Delete product by ID
+DELETE {{baseUrl}}/api/product/1
+Accept: application/json
+
+###
