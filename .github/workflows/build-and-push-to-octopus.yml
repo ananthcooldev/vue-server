@@ -102,14 +102,24 @@ jobs:
         version: latest
 
     - name: Push package to Octopus Deploy
-      uses: OctopusDeploy/push-package-action@v2
-      with:
+      env:
         # REQUIRED: Configure these secrets in GitHub repository settings:
         # 1. Go to: Settings → Secrets and variables → Actions
         # 2. Add secret: OCTOPUS_SERVER_URL (e.g., https://octopus.yourcompany.com)
         # 3. Add secret: OCTOPUS_API_KEY (create in Octopus: Profile → API Keys)
-        server: ${{ secrets.OCTOPUS_SERVER_URL }}
-        apiKey: ${{ secrets.OCTOPUS_API_KEY }}
-        packages: './artifacts/*.zip'
-        overwrite-mode: OverwriteExisting
+        OCTOPUS_CLI_API_KEY: ${{ secrets.OCTOPUS_API_KEY }}
+        OCTOPUS_CLI_SERVER: ${{ secrets.OCTOPUS_SERVER_URL }}
+      run: |
+        echo "Pushing packages to Octopus Server..."
+        for package in ./artifacts/*.zip; do
+          if [ -f "$package" ]; then
+            echo "Pushing: $package"
+            octo push \
+              --server="${{ secrets.OCTOPUS_SERVER_URL }}" \
+              --apiKey="${{ secrets.OCTOPUS_API_KEY }}" \
+              --package="$package" \
+              --overwrite-mode=OverwriteExisting
+          fi
+        done
+        echo "Package push completed successfully"
 
