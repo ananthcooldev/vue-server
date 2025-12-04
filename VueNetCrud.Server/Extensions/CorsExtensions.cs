@@ -16,7 +16,8 @@
                             "https://local.vueclient.com",
                             "http://local.vueclient.com",
                             "http://localhost:4200",
-                            "https://local.angularclient.com"
+                            "https://local.angularclient.com",
+                            "https://local.reactclient.com"
                         )
                         .AllowAnyHeader()
                         .AllowAnyMethod()

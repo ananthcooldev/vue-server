@@ -30,4 +30,11 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="VueNetCrud.Server.Tests\**" />
+    <Content Remove="VueNetCrud.Server.Tests\**" />
+    <EmbeddedResource Remove="VueNetCrud.Server.Tests\**" />
+    <None Remove="VueNetCrud.Server.Tests\**" />
+  </ItemGroup>
+
 </Project>

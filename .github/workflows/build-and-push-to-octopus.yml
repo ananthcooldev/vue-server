@@ -1,0 +1,110 @@
+# GitHub Actions Workflow for VueNetCrud Solution
+# Builds the solution and pushes artifacts to Octopus Server
+
+name: Build and Push to Octopus
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  BUILD_CONFIGURATION: Release
+  SOLUTION_PATH: VueNetCrud.sln
+  PROJECT_PATH: VueNetCrud.Server/VueNetCrud.Server.csproj
+  TEST_PROJECT_PATH: VueNetCrud.Server.Tests/VueNetCrud.Server.Tests.csproj
+  OCTOPUS_PROJECT_NAME: VueNetCrud.Server
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 9.0 SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore NuGet packages
+      run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+    - name: Build solution
+      run: dotnet build ${{ env.SOLUTION_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+    - name: Run tests
+      run: dotnet test ${{ env.TEST_PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-build --collect:"XPlat Code Coverage" --verbosity normal --logger trx --results-directory ./TestResults
+      continue-on-error: true
+
+    - name: Publish application
+      run: dotnet publish ${{ env.PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }} --output ./publish --no-build
+
+    - name: Create Octopus package
+      shell: pwsh
+      run: |
+        # Generate package version based on run number and branch
+        $packageVersion = "${{ github.run_number }}"
+        $branchName = "${{ github.ref_name }}"
+        if ("${{ github.event_name }}" -eq "pull_request") {
+          $packageVersion = "${{ github.run_number }}-pr${{ github.event.pull_request.number }}"
+        } elseif ($branchName -ne "main" -and $branchName -ne "master") {
+          $packageVersion = "${{ github.run_number }}-$branchName"
+        }
+        
+        # Create ZIP package for Octopus
+        $packageName = "${{ env.OCTOPUS_PROJECT_NAME }}.$packageVersion.zip"
+        Compress-Archive -Path ./publish/* -DestinationPath "./$packageName" -Force
+        
+        # Set environment variables for next job
+        echo "PACKAGE_VERSION=$packageVersion" >> $env:GITHUB_ENV
+        echo "PACKAGE_FILE=$packageName" >> $env:GITHUB_ENV
+        
+        Write-Host "Created package: $packageName"
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: octopus-package
+        path: ${{ env.OCTOPUS_PROJECT_NAME }}.${{ env.PACKAGE_VERSION }}.zip
+        retention-days: 30
+
+  push-to-octopus:
+    name: Push to Octopus Server
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: octopus-package
+        path: ./artifacts
+
+    - name: List package files
+      run: |
+        echo "Packages to push:"
+        ls -lh ./artifacts/*.zip || echo "No packages found"
+
+    - name: Push package to Octopus Deploy
+      uses: OctopusDeploy/push-package-action@v2
+      with:
+        # REQUIRED: Configure these secrets in GitHub repository settings:
+        # 1. Go to: Settings → Secrets and variables → Actions
+        # 2. Add secret: OCTOPUS_SERVER_URL (e.g., https://octopus.yourcompany.com)
+        # 3. Add secret: OCTOPUS_API_KEY (create in Octopus: Profile → API Keys)
+        server: ${{ secrets.OCTOPUS_SERVER_URL }}
+        apiKey: ${{ secrets.OCTOPUS_API_KEY }}
+        packages: './artifacts/*.zip'
+        overwrite-mode: OverwriteExisting
+
