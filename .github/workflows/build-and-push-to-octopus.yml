@@ -8,19 +8,21 @@ on:
     branches:
       - main
       - master
-      - develop
+    # Only trigger on pushes to main/master (when PRs are merged)
   pull_request:
     branches:
       - main
       - master
+    # PR triggers for testing, but won't push to Octopus
   workflow_dispatch:
+    # Manual trigger option
 
 env:
   BUILD_CONFIGURATION: Release
   SOLUTION_PATH: VueNetCrud.sln
   PROJECT_PATH: VueNetCrud.Server/VueNetCrud.Server.csproj
   TEST_PROJECT_PATH: VueNetCrud.Server.Tests/VueNetCrud.Server.Tests.csproj
-  OCTOPUS_PROJECT_NAME: VueNetCrud.Server
+  OCTOPUS_PROJECT_NAME: VueDotNetCore
 
 jobs:
   build:
@@ -82,7 +84,8 @@ jobs:
     name: Push to Octopus Server
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name != 'pull_request'
+    # Only push to Octopus when PR is merged to main/master (not on PRs or other branches)
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
     steps:
     - name: Download build artifact
