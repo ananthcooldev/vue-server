@@ -1,19 +1,25 @@
 ﻿using FluentValidation;
+using FluentValidation.AspNetCore;
+using VueNetCrud.Server.Application.Filters;
+using VueNetCrud.Server.Application.Validators;
+
 namespace VueNetCrud.Server.Extensions
 {
     public static class ValidationServiceExtensions
     {
-        public static IServiceCollection AddValidationServices(this IServiceCollection services)
+        public static void AddValidationServices(this IServiceCollection services)
         {
+            // Register FluentValidation validators
+            services.AddValidatorsFromAssemblyContaining<ProductCreateDtoValidator>();
+            services.AddValidatorsFromAssemblyContaining<ProductUpdateDtoValidator>();
+            services.AddValidatorsFromAssemblyContaining<ItemCreateDtoValidator>();
+            services.AddValidatorsFromAssemblyContaining<ItemUpdateDtoValidator>();
 
-            services.AddValidatorsFromAssemblyContaining<Program>();
-            services.AddControllers(options =>
-            {
-                options.Filters.Add<ValidationFilter>();
-            });
+            // Add validation filter
             services.AddScoped<ValidationFilter>();
 
-            return services;
+            // Configure FluentValidation
+            services.AddFluentValidationAutoValidation();
         }
     }
 }

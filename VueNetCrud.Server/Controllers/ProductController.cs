@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using VueNetCrud.Server.Models;
-using VueNetCrud.Server.Repository;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 
 namespace VueNetCrud.Server.Controllers
 {
@@ -8,52 +8,55 @@ namespace VueNetCrud.Server.Controllers
     [Route("api/[controller]")]
     public class ProductController : ControllerBase
     {
-        private readonly IProductRepository _repo;
+        private readonly IProductService _productService;
         private readonly ILogger<ProductController> _logger;
 
-        public ProductController(IProductRepository repo, ILogger<ProductController> logger)
+        public ProductController(IProductService productService, ILogger<ProductController> logger)
         {
-            _repo = repo;
+            _productService = productService;
             _logger = logger;
         }
 
         [HttpGet]
-        public IActionResult GetAll()
+        public async Task<IActionResult> GetAll()
         {
             _logger.LogInformation("Fetching all products");
-            return Ok(_repo.GetAll());
+            var products = await _productService.GetAllAsync();
+            return Ok(products);
         }
 
         [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        public async Task<IActionResult> GetById(int id)
         {
             _logger.LogInformation("Fetching product by ID {id}", id);
-            var product = _repo.GetById(id);
+            var product = await _productService.GetByIdAsync(id);
             return product == null ? NotFound() : Ok(product);
         }
 
         [HttpPost]
-        public IActionResult Add(Product product)
+        public async Task<IActionResult> Add(ProductCreateDto dto)
         {
-            _logger.LogInformation("Adding a new product: {@product}", product);
-            var created = _repo.Add(product);
+            _logger.LogInformation("Adding a new product: {@product}", dto);
+            var created = await _productService.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
 
         [HttpPut("{id}")]
-        public IActionResult Update(int id, Product product)
+        public async Task<IActionResult> Update(int id, ProductUpdateDto dto)
         {
-            if (id != product.Id) return BadRequest();
+            if (id != dto.Id) return BadRequest();
 
             _logger.LogInformation("Updating product Id {id}", id);
-            return _repo.Update(product) ? NoContent() : NotFound();
+            var result = await _productService.UpdateAsync(id, dto);
+            return result ? NoContent() : NotFound();
         }
 
         [HttpDelete("{id}")]
-        public IActionResult Delete(int id)
+        public async Task<IActionResult> Delete(int id)
         {
             _logger.LogWarning("Deleting product Id {id}", id);
-            return _repo.Delete(id) ? NoContent() : NotFound();
+            var result = await _productService.DeleteAsync(id);
+            return result ? NoContent() : NotFound();
         }
     }
 }

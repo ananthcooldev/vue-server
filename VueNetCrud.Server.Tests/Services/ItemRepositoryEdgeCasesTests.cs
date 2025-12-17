@@ -1,138 +1,142 @@
 using FluentAssertions;
-using VueNetCrud.Server.Models;
-using VueNetCrud.Server.Services;
+using VueNetCrud.Server.Domain.Entities;
+using VueNetCrud.Server.Infrastructure.Repositories;
 using Xunit;
 
-namespace VueNetCrud.Server.Tests.Services
+namespace VueNetCrud.Server.Tests.Services;
+
+public class ItemRepositoryEdgeCasesTests
 {
-    public class ItemRepositoryEdgeCasesTests
+    [Fact]
+    public void Create_WithOnlyWhitespaceInName_ShouldCreate()
     {
-        [Fact]
-        public void Create_WithOnlyWhitespaceInName_ShouldThrowArgumentException()
-        {
-            // Arrange
-            var repository = new ItemRepository();
-            var dto = new ItemCreate("   \t\n   ", "Description");
+        // Arrange
+        var repository = new ItemRepository();
+        var item = new Item(0, "   \t\n   ", "Description");
 
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => repository.Create(dto));
-        }
+        // Act
+        var result = repository.Create(item);
 
-        [Fact]
-        public void Create_WithTabAndNewlineInName_ShouldThrowArgumentException()
-        {
-            // Arrange
-            var repository = new ItemRepository();
-            var dto = new ItemCreate("\t\n", "Description");
+        // Assert
+        result.Should().NotBeNull();
+        // Note: Repository doesn't validate, service layer does
+    }
 
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => repository.Create(dto));
-        }
+    [Fact]
+    public void Create_WithTabAndNewlineInName_ShouldCreate()
+    {
+        // Arrange
+        var repository = new ItemRepository();
+        var item = new Item(0, "\t\n", "Description");
 
-        [Fact]
-        public void Update_WithOnlyWhitespaceInName_ShouldKeepOriginalName()
-        {
-            // Arrange
-            var repository = new ItemRepository();
-            var createDto = new ItemCreate("Original Name", "Description");
-            var created = repository.Create(createDto);
-            var updateDto = new ItemUpdate("   \t\n   ", "Updated Description");
+        // Act
+        var result = repository.Create(item);
 
-            // Act
-            var result = repository.Update(created.id, updateDto);
+        // Assert
+        result.Should().NotBeNull();
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result!.name.Should().Be("Original Name");
-            result.description.Should().Be("Updated Description");
-        }
+    [Fact]
+    public void Update_WithOnlyWhitespaceInName_ShouldUpdate()
+    {
+        // Arrange
+        var repository = new ItemRepository();
+        var item = new Item(0, "Original Name", "Description");
+        var created = repository.Create(item);
+        var updatedItem = new Item(created.Id, "   \t\n   ", "Updated Description");
 
-        [Fact]
-        public void Update_WithWhitespaceDescription_ShouldTrimDescription()
-        {
-            // Arrange
-            var repository = new ItemRepository();
-            var createDto = new ItemCreate("Item", "Original Description");
-            var created = repository.Create(createDto);
-            var updateDto = new ItemUpdate("Updated Name", "   Trimmed Description   ");
+        // Act
+        var result = repository.Update(created.Id, updatedItem);
 
-            // Act
-            var result = repository.Update(created.id, updateDto);
+        // Assert
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("   \t\n   ");
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result!.name.Should().Be("Updated Name");
-            result.description.Should().Be("Trimmed Description");
-        }
+    [Fact]
+    public void Update_WithWhitespaceDescription_ShouldUpdate()
+    {
+        // Arrange
+        var repository = new ItemRepository();
+        var item = new Item(0, "Item", "Original Description");
+        var created = repository.Create(item);
+        var updatedItem = new Item(created.Id, "Updated Name", "   Trimmed Description   ");
 
-        [Fact]
-        public void Update_WithNullDescription_ShouldSetDescriptionToNull()
-        {
-            // Arrange
-            var repository = new ItemRepository();
-            var createDto = new ItemCreate("Item", "Original Description");
-            var created = repository.Create(createDto);
-            var updateDto = new ItemUpdate("Updated Name", null);
+        // Act
+        var result = repository.Update(created.Id, updatedItem);
 
-            // Act
-            var result = repository.Update(created.id, updateDto);
+        // Assert
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Updated Name");
+        result.Description.Should().Be("   Trimmed Description   ");
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result!.description.Should().BeNull();
-        }
+    [Fact]
+    public void Update_WithNullDescription_ShouldSetDescriptionToNull()
+    {
+        // Arrange
+        var repository = new ItemRepository();
+        var item = new Item(0, "Item", "Original Description");
+        var created = repository.Create(item);
+        var updatedItem = new Item(created.Id, "Updated Name", null);
 
-        [Fact]
-        public void GetById_WithZeroId_ShouldReturnNull()
-        {
-            // Arrange
-            var repository = new ItemRepository();
+        // Act
+        var result = repository.Update(created.Id, updatedItem);
 
-            // Act
-            var result = repository.GetById(0);
+        // Assert
+        result.Should().NotBeNull();
+        result!.Description.Should().BeNull();
+    }
 
-            // Assert
-            result.Should().BeNull();
-        }
+    [Fact]
+    public void GetById_WithZeroId_ShouldReturnNull()
+    {
+        // Arrange
+        var repository = new ItemRepository();
 
-        [Fact]
-        public void GetById_WithNegativeId_ShouldReturnNull()
-        {
-            // Arrange
-            var repository = new ItemRepository();
+        // Act
+        var result = repository.GetById(0);
 
-            // Act
-            var result = repository.GetById(-1);
+        // Assert
+        result.Should().BeNull();
+    }
 
-            // Assert
-            result.Should().BeNull();
-        }
+    [Fact]
+    public void GetById_WithNegativeId_ShouldReturnNull()
+    {
+        // Arrange
+        var repository = new ItemRepository();
 
-        [Fact]
-        public void Delete_WithZeroId_ShouldReturnFalse()
-        {
-            // Arrange
-            var repository = new ItemRepository();
+        // Act
+        var result = repository.GetById(-1);
 
-            // Act
-            var result = repository.Delete(0);
+        // Assert
+        result.Should().BeNull();
+    }
 
-            // Assert
-            result.Should().BeFalse();
-        }
+    [Fact]
+    public void Delete_WithZeroId_ShouldReturnFalse()
+    {
+        // Arrange
+        var repository = new ItemRepository();
 
-        [Fact]
-        public void Delete_WithNegativeId_ShouldReturnFalse()
-        {
-            // Arrange
-            var repository = new ItemRepository();
+        // Act
+        var result = repository.Delete(0);
 
-            // Act
-            var result = repository.Delete(-1);
+        // Assert
+        result.Should().BeFalse();
+    }
 
-            // Assert
-            result.Should().BeFalse();
-        }
+    [Fact]
+    public void Delete_WithNegativeId_ShouldReturnFalse()
+    {
+        // Arrange
+        var repository = new ItemRepository();
+
+        // Act
+        var result = repository.Delete(-1);
+
+        // Assert
+        result.Should().BeFalse();
     }
 }
-

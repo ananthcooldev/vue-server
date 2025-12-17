@@ -1,128 +1,101 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 using VueNetCrud.Server.Controllers;
 using Xunit;
 
-namespace VueNetCrud.Server.Tests.Controllers
+namespace VueNetCrud.Server.Tests.Controllers;
+
+public class AuthControllerAdditionalTests
 {
-    public class AuthControllerAdditionalTests
+    private readonly Mock<IAuthService> _mockAuthService;
+    private readonly Mock<ILogger<AuthController>> _mockLogger;
+    private readonly AuthController _controller;
+
+    public AuthControllerAdditionalTests()
     {
-        private readonly Mock<IConfiguration> _mockConfig;
-        private readonly Mock<IConfigurationSection> _mockJwtSection;
-        private readonly AuthController _controller;
+        _mockAuthService = new Mock<IAuthService>();
+        _mockLogger = new Mock<ILogger<AuthController>>();
+        _controller = new AuthController(_mockAuthService.Object, _mockLogger.Object);
+    }
 
-        public AuthControllerAdditionalTests()
-        {
-            _mockConfig = new Mock<IConfiguration>();
-            _mockJwtSection = new Mock<IConfigurationSection>();
+    [Fact]
+    public void Options_WithLoginRoute_ShouldReturnOk()
+    {
+        // Act
+        var result = _controller.Options();
 
-            _mockJwtSection.Setup(x => x["Key"]).Returns("ThisIsASecretKeyForJwtTokenGeneration123456");
-            _mockJwtSection.Setup(x => x["Issuer"]).Returns("TestIssuer");
-            _mockJwtSection.Setup(x => x["Audience"]).Returns("TestAudience");
+        // Assert
+        result.Should().BeOfType<OkResult>();
+    }
 
-            _mockConfig.Setup(x => x.GetSection("Jwt")).Returns(_mockJwtSection.Object);
+    [Fact]
+    public async Task Login_WithEmptyUsername_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        var request = new LoginRequestDto("", "123");
+        _mockAuthService.Setup(s => s.LoginAsync(request)).ReturnsAsync((LoginResponseDto?)null);
 
-            _controller = new AuthController(_mockConfig.Object);
-        }
+        // Act
+        var result = await _controller.Login(request);
 
-        [Fact]
-        public void Options_WithLoginRoute_ShouldReturnOk()
-        {
-            // Act
-            var result = _controller.Options();
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorizedResult = result as UnauthorizedObjectResult;
+        unauthorizedResult!.Value.Should().Be("Invalid credentials");
+    }
 
-            // Assert
-            result.Should().BeOfType<OkResult>();
-        }
+    [Fact]
+    public async Task Login_WithEmptyPassword_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        var request = new LoginRequestDto("admin", "");
+        _mockAuthService.Setup(s => s.LoginAsync(request)).ReturnsAsync((LoginResponseDto?)null);
 
-        [Fact]
-        public void Login_WithEmptyUsername_ShouldReturnUnauthorized()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "",
-                Password = "123"
-            };
+        // Act
+        var result = await _controller.Login(request);
 
-            // Act
-            var result = _controller.Login(loginModel);
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorizedResult = result as UnauthorizedObjectResult;
+        unauthorizedResult!.Value.Should().Be("Invalid credentials");
+    }
 
-            // Assert
-            result.Should().BeOfType<UnauthorizedObjectResult>();
-            var unauthorizedResult = result as UnauthorizedObjectResult;
-            unauthorizedResult!.Value.Should().Be("Invalid credentials");
-        }
+    [Fact]
+    public async Task Login_WithWhitespaceCredentials_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        var request = new LoginRequestDto("   ", "   ");
+        _mockAuthService.Setup(s => s.LoginAsync(request)).ReturnsAsync((LoginResponseDto?)null);
 
-        [Fact]
-        public void Login_WithEmptyPassword_ShouldReturnUnauthorized()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "admin",
-                Password = ""
-            };
+        // Act
+        var result = await _controller.Login(request);
 
-            // Act
-            var result = _controller.Login(loginModel);
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+    }
 
-            // Assert
-            result.Should().BeOfType<UnauthorizedObjectResult>();
-            var unauthorizedResult = result as UnauthorizedObjectResult;
-            unauthorizedResult!.Value.Should().Be("Invalid credentials");
-        }
+    [Fact]
+    public async Task Login_ShouldGenerateValidJwtToken()
+    {
+        // Arrange
+        var request = new LoginRequestDto("admin", "123");
+        var response = new LoginResponseDto("test-token-123");
+        _mockAuthService.Setup(s => s.LoginAsync(request)).ReturnsAsync(response);
 
-        [Fact]
-        public void Login_WithWhitespaceCredentials_ShouldReturnUnauthorized()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "   ",
-                Password = "   "
-            };
+        // Act
+        var result = await _controller.Login(request);
 
-            // Act
-            var result = _controller.Login(loginModel);
-
-            // Assert
-            result.Should().BeOfType<UnauthorizedObjectResult>();
-        }
-
-        [Fact]
-        public void Login_ShouldGenerateValidJwtToken()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "admin",
-                Password = "123"
-            };
-
-            // Act
-            var result = _controller.Login(loginModel);
-
-            // Assert
-            result.Should().BeOfType<OkObjectResult>();
-            var okResult = result as OkObjectResult;
-            okResult!.Value.Should().NotBeNull();
-            
-            var valueType = okResult.Value!.GetType();
-            var tokenProperty = valueType.GetProperty("token");
-            Assert.NotNull(tokenProperty);
-            var tokenValue = tokenProperty.GetValue(okResult.Value);
-            Assert.NotNull(tokenValue);
-            var tokenString = tokenValue.ToString()!;
-            Assert.NotEmpty(tokenString);
-            
-            // Verify it's a valid JWT format (has 3 parts separated by dots)
-            var parts = tokenString.Split('.');
-            parts.Length.Should().Be(3);
-        }
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.Value.Should().NotBeNull();
+        
+        var loginResponse = okResult.Value as LoginResponseDto;
+        loginResponse.Should().NotBeNull();
+        loginResponse!.Token.Should().Be("test-token-123");
     }
 }
-

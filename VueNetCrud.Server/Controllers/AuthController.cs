@@ -1,9 +1,7 @@
 ﻿using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 
 namespace VueNetCrud.Server.Controllers
 {
@@ -12,11 +10,13 @@ namespace VueNetCrud.Server.Controllers
     [EnableCors("ClientCors")]
     public class AuthController : ControllerBase
     {
-        private readonly IConfiguration _config;
+        private readonly IAuthService _authService;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(IConfiguration config)
+        public AuthController(IAuthService authService, ILogger<AuthController> logger)
         {
-            _config = config;
+            _authService = authService;
+            _logger = logger;
         }
 
         [HttpOptions]
@@ -27,46 +27,16 @@ namespace VueNetCrud.Server.Controllers
         }
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginModel model)
+        public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
         {
-            // Dummy validation — replace with DB check later
-            if (model.Username == "admin" && model.Password == "123")
+            var result = await _authService.LoginAsync(request);
+            
+            if (result == null)
             {
-                var token = GenerateJwtToken(model.Username);
-                return Ok(new { token });
+                return Unauthorized("Invalid credentials");
             }
 
-            return Unauthorized("Invalid credentials");
+            return Ok(result);
         }
-
-        private string GenerateJwtToken(string username)
-        {
-            var jwtSettings = _config.GetSection("Jwt");
-
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.Name, username)
-            };
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-            var token = new JwtSecurityToken(
-                issuer: jwtSettings["Issuer"],
-                audience: jwtSettings["Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(1),
-                signingCredentials: creds
-            );
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-
-    }
-
-    public class LoginModel
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
     }
 }
