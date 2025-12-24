@@ -72,6 +72,7 @@ jobs:
       with:
         projectBaseDir: .
         args: >
+          -Dsonar.token=${{ secrets.SONAR_TOKEN }}
           -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
           -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
           -Dsonar.cs.opencover.reportsPaths=**/coverage.opencover.xml
@@ -79,4 +80,5 @@ jobs:
           -Dsonar.exclusions=**/bin/**,**/obj/**,**/node_modules/**,**/*.Tests.csproj,**/TestResults/**
           -Dsonar.sourceEncoding=UTF-8
           -Dsonar.csharp.analyzer.projectOutPaths=**/bin/**
+          -Dsonar.host.url=https://sonarcloud.io
 
