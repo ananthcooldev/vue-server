@@ -65,7 +65,7 @@ jobs:
       continue-on-error: true
 
     - name: Run SonarCloud Analysis
-      uses: sonarsource/sonarcloud-github-action@v2.1.2
+      uses: sonarsource/sonarcloud-github-action@2.1.2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, auto-provided by GitHub
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}    # SonarCloud token (required)
