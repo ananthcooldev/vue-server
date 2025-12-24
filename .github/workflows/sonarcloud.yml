@@ -46,12 +46,6 @@ jobs:
         key: ${{ runner.os }}-sonar
         restore-keys: ${{ runner.os }}-sonar
 
-    - name: Install SonarCloud Scanner
-      uses: SonarSource/sonarcloud-github-action@master
-      id: sonarcloud
-      with:
-        projectBaseDir: .
-
     - name: Restore NuGet packages
       run: dotnet restore ${{ env.SOLUTION_PATH }}
 
