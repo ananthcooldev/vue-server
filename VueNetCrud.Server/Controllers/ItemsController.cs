@@ -1,41 +1,40 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using VueNetCrud.Server.Models;
-using VueNetCrud.Server.Services;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 
 namespace VueNetCrud.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-
 public class ItemsController : ControllerBase
 {
-    private readonly ItemRepository _repository;
+    private readonly IItemService _itemService;
     private readonly ILogger<ItemsController> _logger;
 
-    public ItemsController(ItemRepository repository, ILogger<ItemsController> logger)
+    public ItemsController(IItemService itemService, ILogger<ItemsController> logger)
     {
-        _repository = repository;
+        _itemService = itemService;
         _logger = logger;
     }
 
     [Authorize]
     [HttpGet]
-    public ActionResult<IEnumerable<Item>> GetAll()
+    public async Task<ActionResult<IEnumerable<ItemResponseDto>>> GetAll()
     {
-        var items = _repository.GetAll();
-        _logger.LogInformation("GetAll Item API was at {time}", DateTime.UtcNow);
+        var items = await _itemService.GetAllAsync();
+        _logger.LogInformation("GetAll Item API was called at {time}", DateTime.UtcNow);
         return Ok(items);
     }
 
     [Authorize]
     [HttpGet("{id:int}")]
-    public ActionResult<Item> GetById(int id)
+    public async Task<ActionResult<ItemResponseDto>> GetById(int id)
     {
-        var item = _repository.GetById(id);
-        _logger.LogInformation("GetAll Item by ID API was at {time}", DateTime.UtcNow);
+        var item = await _itemService.GetByIdAsync(id);
+        _logger.LogInformation("GetItem by ID {Id} API was called at {time}", id, DateTime.UtcNow);
 
-        if (item is null)
+        if (item == null)
         {
             return NotFound();
         }
@@ -44,14 +43,13 @@ public class ItemsController : ControllerBase
 
     [Authorize]
     [HttpPost]
-    public ActionResult<Item> Create(ItemCreate dto)
+    public async Task<ActionResult<ItemResponseDto>> Create(ItemCreateDto dto)
     {
         try
         {
-            var created = _repository.Create(dto);
-            _logger.LogInformation("Create Item by model Object API was at {time}", DateTime.UtcNow);
-
-            return CreatedAtAction(nameof(GetById), new { id = created.id }, created);
+            var created = await _itemService.CreateAsync(dto);
+            _logger.LogInformation("Create Item API was called at {time}", DateTime.UtcNow);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
         catch (ArgumentException ex)
         {
@@ -61,12 +59,12 @@ public class ItemsController : ControllerBase
 
     [Authorize]
     [HttpPut("{id:int}")]
-    public ActionResult<Item> Update(int id, ItemUpdate dto)
+    public async Task<ActionResult<ItemResponseDto>> Update(int id, ItemUpdateDto dto)
     {
-        var updated = _repository.Update(id, dto);
-        _logger.LogInformation("Update Item by model Object API was at {time}", DateTime.UtcNow);
+        var updated = await _itemService.UpdateAsync(id, dto);
+        _logger.LogInformation("Update Item by ID {Id} API was called at {time}", id, DateTime.UtcNow);
 
-        if (updated is null)
+        if (updated == null)
         {
             return NotFound();
         }
@@ -75,10 +73,10 @@ public class ItemsController : ControllerBase
 
     [Authorize]
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id)
+    public async Task<IActionResult> Delete(int id)
     {
-        var removed = _repository.Delete(id);
-        _logger.LogInformation("Delete Item by Id API was at {time}", DateTime.UtcNow);
+        var removed = await _itemService.DeleteAsync(id);
+        _logger.LogInformation("Delete Item by ID {Id} API was called at {time}", id, DateTime.UtcNow);
 
         if (!removed)
         {
@@ -91,10 +89,7 @@ public class ItemsController : ControllerBase
     [HttpGet("TestError")]
     public IActionResult TestError()
     {
-        _logger.LogInformation("TestError API was at {time}", DateTime.UtcNow);
+        _logger.LogInformation("TestError API was called at {time}", DateTime.UtcNow);
         throw new Exception("Test exception for logging");
     }
 }
-
-
-

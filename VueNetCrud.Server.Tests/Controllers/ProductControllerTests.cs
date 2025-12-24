@@ -2,159 +2,159 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 using VueNetCrud.Server.Controllers;
-using VueNetCrud.Server.Models;
-using VueNetCrud.Server.Repository;
 using Xunit;
 
-namespace VueNetCrud.Server.Tests.Controllers
+namespace VueNetCrud.Server.Tests.Controllers;
+
+public class ProductControllerTests
 {
-    public class ProductControllerTests
+    private readonly Mock<IProductService> _mockProductService;
+    private readonly Mock<ILogger<ProductController>> _mockLogger;
+    private readonly ProductController _controller;
+
+    public ProductControllerTests()
     {
-        private readonly Mock<IProductRepository> _mockRepository;
-        private readonly Mock<ILogger<ProductController>> _mockLogger;
-        private readonly ProductController _controller;
+        _mockProductService = new Mock<IProductService>();
+        _mockLogger = new Mock<ILogger<ProductController>>();
+        _controller = new ProductController(_mockProductService.Object, _mockLogger.Object);
+    }
 
-        public ProductControllerTests()
+    [Fact]
+    public async Task GetAll_ShouldReturnOkWithProducts()
+    {
+        // Arrange
+        var products = new List<ProductResponseDto>
         {
-            _mockRepository = new Mock<IProductRepository>();
-            _mockLogger = new Mock<ILogger<ProductController>>();
-            _controller = new ProductController(_mockRepository.Object, _mockLogger.Object);
-        }
+            new ProductResponseDto(1, "Product 1", 100, "Electronics"),
+            new ProductResponseDto(2, "Product 2", 200, "Books")
+        };
+        _mockProductService.Setup(s => s.GetAllAsync()).ReturnsAsync(products);
 
-        [Fact]
-        public void GetAll_ShouldReturnOkWithProducts()
-        {
-            // Arrange
-            var products = new List<Product>
-            {
-                new Product { Id = 1, Name = "Laptop", Price = 75000, Category = "Electronics" },
-                new Product { Id = 2, Name = "Mouse", Price = 500, Category = "Electronics" }
-            };
-            _mockRepository.Setup(r => r.GetAll()).Returns(products);
+        // Act
+        var result = await _controller.GetAll();
 
-            // Act
-            var result = _controller.GetAll();
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockProductService.Verify(s => s.GetAllAsync(), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<OkObjectResult>();
-            var okResult = result as OkObjectResult;
-            okResult!.Value.Should().BeEquivalentTo(products);
-        }
+    [Fact]
+    public async Task GetById_WithValidId_ShouldReturnOk()
+    {
+        // Arrange
+        var product = new ProductResponseDto(1, "Product 1", 100, "Electronics");
+        _mockProductService.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(product);
 
-        [Fact]
-        public void GetById_WithValidId_ShouldReturnOkWithProduct()
-        {
-            // Arrange
-            var product = new Product { Id = 1, Name = "Laptop", Price = 75000, Category = "Electronics" };
-            _mockRepository.Setup(r => r.GetById(1)).Returns(product);
+        // Act
+        var result = await _controller.GetById(1);
 
-            // Act
-            var result = _controller.GetById(1);
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        _mockProductService.Verify(s => s.GetByIdAsync(1), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<OkObjectResult>();
-            var okResult = result as OkObjectResult;
-            okResult!.Value.Should().BeEquivalentTo(product);
-        }
+    [Fact]
+    public async Task GetById_WithInvalidId_ShouldReturnNotFound()
+    {
+        // Arrange
+        _mockProductService.Setup(s => s.GetByIdAsync(999)).ReturnsAsync((ProductResponseDto?)null);
 
-        [Fact]
-        public void GetById_WithInvalidId_ShouldReturnNotFound()
-        {
-            // Arrange
-            _mockRepository.Setup(r => r.GetById(999)).Returns((Product?)null);
+        // Act
+        var result = await _controller.GetById(999);
 
-            // Act
-            var result = _controller.GetById(999);
+        // Assert
+        result.Should().BeOfType<NotFoundResult>();
+        _mockProductService.Verify(s => s.GetByIdAsync(999), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<NotFoundResult>();
-        }
+    [Fact]
+    public async Task Add_WithValidDto_ShouldReturnCreated()
+    {
+        // Arrange
+        var dto = new ProductCreateDto("New Product", 150, "Electronics");
+        var created = new ProductResponseDto(1, "New Product", 150, "Electronics");
+        _mockProductService.Setup(s => s.CreateAsync(dto)).ReturnsAsync(created);
 
-        [Fact]
-        public void Add_WithValidProduct_ShouldReturnCreated()
-        {
-            // Arrange
-            var product = new Product { Id = 0, Name = "Keyboard", Price = 1000, Category = "Electronics" };
-            var createdProduct = new Product { Id = 3, Name = "Keyboard", Price = 1000, Category = "Electronics" };
-            _mockRepository.Setup(r => r.Add(product)).Returns(createdProduct);
+        // Act
+        var result = await _controller.Add(dto);
 
-            // Act
-            var result = _controller.Add(product);
+        // Assert
+        result.Should().BeOfType<CreatedAtActionResult>();
+        _mockProductService.Verify(s => s.CreateAsync(dto), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<CreatedAtActionResult>();
-            var createdResult = result as CreatedAtActionResult;
-            createdResult!.Value.Should().BeEquivalentTo(createdProduct);
-            createdResult.ActionName.Should().Be(nameof(ProductController.GetById));
-        }
+    [Fact]
+    public async Task Update_WithValidId_ShouldReturnNoContent()
+    {
+        // Arrange
+        var dto = new ProductUpdateDto(1, "Updated Product", 200, "Books");
+        _mockProductService.Setup(s => s.UpdateAsync(1, dto)).ReturnsAsync(true);
 
-        [Fact]
-        public void Update_WithValidProduct_ShouldReturnNoContent()
-        {
-            // Arrange
-            var product = new Product { Id = 1, Name = "Updated Laptop", Price = 80000, Category = "Electronics" };
-            _mockRepository.Setup(r => r.Update(product)).Returns(true);
+        // Act
+        var result = await _controller.Update(1, dto);
 
-            // Act
-            var result = _controller.Update(1, product);
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+        _mockProductService.Verify(s => s.UpdateAsync(1, dto), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<NoContentResult>();
-        }
+    [Fact]
+    public async Task Update_WithMismatchedId_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var dto = new ProductUpdateDto(2, "Updated Product", 200, "Books");
 
-        [Fact]
-        public void Update_WithMismatchedId_ShouldReturnBadRequest()
-        {
-            // Arrange
-            var product = new Product { Id = 1, Name = "Updated Laptop", Price = 80000, Category = "Electronics" };
+        // Act
+        var result = await _controller.Update(1, dto);
 
-            // Act
-            var result = _controller.Update(2, product);
+        // Assert
+        result.Should().BeOfType<BadRequestResult>();
+        _mockProductService.Verify(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<ProductUpdateDto>()), Times.Never);
+    }
 
-            // Assert
-            result.Should().BeOfType<BadRequestResult>();
-        }
+    [Fact]
+    public async Task Update_WithInvalidId_ShouldReturnNotFound()
+    {
+        // Arrange
+        var dto = new ProductUpdateDto(999, "Updated Product", 200, "Books");
+        _mockProductService.Setup(s => s.UpdateAsync(999, dto)).ReturnsAsync(false);
 
-        [Fact]
-        public void Update_WithInvalidId_ShouldReturnNotFound()
-        {
-            // Arrange
-            var product = new Product { Id = 999, Name = "Non-existent", Price = 100, Category = "Electronics" };
-            _mockRepository.Setup(r => r.Update(product)).Returns(false);
+        // Act
+        var result = await _controller.Update(999, dto);
 
-            // Act
-            var result = _controller.Update(999, product);
+        // Assert
+        result.Should().BeOfType<NotFoundResult>();
+        _mockProductService.Verify(s => s.UpdateAsync(999, dto), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<NotFoundResult>();
-        }
+    [Fact]
+    public async Task Delete_WithValidId_ShouldReturnNoContent()
+    {
+        // Arrange
+        _mockProductService.Setup(s => s.DeleteAsync(1)).ReturnsAsync(true);
 
-        [Fact]
-        public void Delete_WithValidId_ShouldReturnNoContent()
-        {
-            // Arrange
-            _mockRepository.Setup(r => r.Delete(1)).Returns(true);
+        // Act
+        var result = await _controller.Delete(1);
 
-            // Act
-            var result = _controller.Delete(1);
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+        _mockProductService.Verify(s => s.DeleteAsync(1), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<NoContentResult>();
-        }
+    [Fact]
+    public async Task Delete_WithInvalidId_ShouldReturnNotFound()
+    {
+        // Arrange
+        _mockProductService.Setup(s => s.DeleteAsync(999)).ReturnsAsync(false);
 
-        [Fact]
-        public void Delete_WithInvalidId_ShouldReturnNotFound()
-        {
-            // Arrange
-            _mockRepository.Setup(r => r.Delete(999)).Returns(false);
+        // Act
+        var result = await _controller.Delete(999);
 
-            // Act
-            var result = _controller.Delete(999);
-
-            // Assert
-            result.Should().BeOfType<NotFoundResult>();
-        }
+        // Assert
+        result.Should().BeOfType<NotFoundResult>();
+        _mockProductService.Verify(s => s.DeleteAsync(999), Times.Once);
     }
 }
-

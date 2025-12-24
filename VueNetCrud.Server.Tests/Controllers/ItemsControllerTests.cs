@@ -1,173 +1,183 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
+using System.Security.Claims;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 using VueNetCrud.Server.Controllers;
-using VueNetCrud.Server.Models;
-using VueNetCrud.Server.Services;
 using Xunit;
 
-namespace VueNetCrud.Server.Tests.Controllers
+namespace VueNetCrud.Server.Tests.Controllers;
+
+public class ItemsControllerTests
 {
-    public class ItemsControllerTests
+    private readonly Mock<IItemService> _mockItemService;
+    private readonly Mock<ILogger<ItemsController>> _mockLogger;
+    private readonly ItemsController _controller;
+
+    public ItemsControllerTests()
     {
-        private readonly ItemRepository _repository;
-        private readonly Mock<ILogger<ItemsController>> _mockLogger;
-        private readonly ItemsController _controller;
-
-        public ItemsControllerTests()
+        _mockItemService = new Mock<IItemService>();
+        _mockLogger = new Mock<ILogger<ItemsController>>();
+        _controller = new ItemsController(_mockItemService.Object, _mockLogger.Object);
+        
+        // Set up authorization context
+        var claims = new[] { new Claim(ClaimTypes.Name, "testuser") };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        _controller.ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext
         {
-            _repository = new ItemRepository();
-            _mockLogger = new Mock<ILogger<ItemsController>>();
-            _controller = new ItemsController(_repository, _mockLogger.Object);
-        }
+            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            {
+                User = principal
+            }
+        };
+    }
 
-        [Fact]
-        public void GetAll_ShouldReturnOkWithItems()
+    [Fact]
+    public async Task GetAll_ShouldReturnOkWithItems()
+    {
+        // Arrange
+        var items = new List<ItemResponseDto>
         {
-            // Arrange
-            var dto1 = new ItemCreate("Item 1", "Description 1");
-            var dto2 = new ItemCreate("Item 2", "Description 2");
-            var item1 = _repository.Create(dto1);
-            var item2 = _repository.Create(dto2);
+            new ItemResponseDto(1, "Item 1", "Description 1"),
+            new ItemResponseDto(2, "Item 2", "Description 2")
+        };
+        _mockItemService.Setup(s => s.GetAllAsync()).ReturnsAsync(items);
 
-            // Act
-            var result = _controller.GetAll();
+        // Act
+        var result = await _controller.GetAll();
 
-            // Assert
-            result.Result.Should().BeOfType<OkObjectResult>();
-            var okResult = result.Result as OkObjectResult;
-            var items = okResult!.Value as IEnumerable<Item>;
-            items.Should().Contain(i => i.id == item1.id);
-            items.Should().Contain(i => i.id == item2.id);
-        }
+        // Assert
+        result.Result.Should().BeOfType<OkObjectResult>();
+        _mockItemService.Verify(s => s.GetAllAsync(), Times.Once);
+    }
 
-        [Fact]
-        public void GetById_WithValidId_ShouldReturnOkWithItem()
-        {
-            // Arrange
-            var dto = new ItemCreate("Item 1", "Description 1");
-            var createdItem = _repository.Create(dto);
+    [Fact]
+    public async Task GetById_WithValidId_ShouldReturnOk()
+    {
+        // Arrange
+        var item = new ItemResponseDto(1, "Item 1", "Description 1");
+        _mockItemService.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(item);
 
-            // Act
-            var result = _controller.GetById(createdItem.id);
+        // Act
+        var result = await _controller.GetById(1);
 
-            // Assert
-            result.Result.Should().BeOfType<OkObjectResult>();
-            var okResult = result.Result as OkObjectResult;
-            var item = okResult!.Value as Item;
-            item.Should().BeEquivalentTo(createdItem);
-        }
+        // Assert
+        result.Result.Should().BeOfType<OkObjectResult>();
+        _mockItemService.Verify(s => s.GetByIdAsync(1), Times.Once);
+    }
 
-        [Fact]
-        public void GetById_WithInvalidId_ShouldReturnNotFound()
-        {
-            // Act
-            var result = _controller.GetById(999);
+    [Fact]
+    public async Task GetById_WithInvalidId_ShouldReturnNotFound()
+    {
+        // Arrange
+        _mockItemService.Setup(s => s.GetByIdAsync(999)).ReturnsAsync((ItemResponseDto?)null);
 
-            // Assert
-            result.Result.Should().BeOfType<NotFoundResult>();
-        }
+        // Act
+        var result = await _controller.GetById(999);
 
-        [Fact]
-        public void Create_WithValidDto_ShouldReturnCreated()
-        {
-            // Arrange
-            var dto = new ItemCreate("New Item", "New Description");
+        // Assert
+        result.Result.Should().BeOfType<NotFoundResult>();
+        _mockItemService.Verify(s => s.GetByIdAsync(999), Times.Once);
+    }
 
-            // Act
-            var result = _controller.Create(dto);
+    [Fact]
+    public async Task Create_WithValidDto_ShouldReturnCreated()
+    {
+        // Arrange
+        var dto = new ItemCreateDto("New Item", "New Description");
+        var created = new ItemResponseDto(1, "New Item", "New Description");
+        _mockItemService.Setup(s => s.CreateAsync(dto)).ReturnsAsync(created);
 
-            // Assert
-            result.Result.Should().BeOfType<CreatedAtActionResult>();
-            var createdResult = result.Result as CreatedAtActionResult;
-            var createdItem = createdResult!.Value as Item;
-            createdItem.Should().NotBeNull();
-            createdItem!.name.Should().Be("New Item");
-            createdItem.description.Should().Be("New Description");
-            createdResult.ActionName.Should().Be(nameof(ItemsController.GetById));
-        }
+        // Act
+        var result = await _controller.Create(dto);
 
-        [Fact]
-        public void Create_WithInvalidDto_ShouldReturnBadRequest()
-        {
-            // Arrange
-            var dto = new ItemCreate("", "Description");
+        // Assert
+        result.Result.Should().BeOfType<CreatedAtActionResult>();
+        _mockItemService.Verify(s => s.CreateAsync(dto), Times.Once);
+    }
 
-            // Act
-            var result = _controller.Create(dto);
+    [Fact]
+    public async Task Create_WithInvalidDto_ShouldReturnBadRequest()
+    {
+        // Arrange
+        var dto = new ItemCreateDto("", "Description");
+        _mockItemService.Setup(s => s.CreateAsync(dto)).ThrowsAsync(new ArgumentException("Name is required"));
 
-            // Assert
-            result.Result.Should().BeOfType<BadRequestObjectResult>();
-            var badRequestResult = result.Result as BadRequestObjectResult;
-            badRequestResult!.Value.Should().NotBeNull();
-        }
+        // Act
+        var result = await _controller.Create(dto);
 
-        [Fact]
-        public void Update_WithValidId_ShouldReturnOk()
-        {
-            // Arrange
-            var createDto = new ItemCreate("Original Item", "Original Description");
-            var created = _repository.Create(createDto);
-            var updateDto = new ItemUpdate("Updated Item", "Updated Description");
+        // Assert
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+        _mockItemService.Verify(s => s.CreateAsync(dto), Times.Once);
+    }
 
-            // Act
-            var result = _controller.Update(created.id, updateDto);
+    [Fact]
+    public async Task Update_WithValidId_ShouldReturnOk()
+    {
+        // Arrange
+        var dto = new ItemUpdateDto("Updated Name", "Updated Description");
+        var updated = new ItemResponseDto(1, "Updated Name", "Updated Description");
+        _mockItemService.Setup(s => s.UpdateAsync(1, dto)).ReturnsAsync(updated);
 
-            // Assert
-            result.Result.Should().BeOfType<OkObjectResult>();
-            var okResult = result.Result as OkObjectResult;
-            var updatedItem = okResult!.Value as Item;
-            updatedItem.Should().NotBeNull();
-            updatedItem!.name.Should().Be("Updated Item");
-            updatedItem.description.Should().Be("Updated Description");
-        }
+        // Act
+        var result = await _controller.Update(1, dto);
 
-        [Fact]
-        public void Update_WithInvalidId_ShouldReturnNotFound()
-        {
-            // Arrange
-            var dto = new ItemUpdate("Updated Item", "Updated Description");
+        // Assert
+        result.Result.Should().BeOfType<OkObjectResult>();
+        _mockItemService.Verify(s => s.UpdateAsync(1, dto), Times.Once);
+    }
 
-            // Act
-            var result = _controller.Update(999, dto);
+    [Fact]
+    public async Task Update_WithInvalidId_ShouldReturnNotFound()
+    {
+        // Arrange
+        var dto = new ItemUpdateDto("Updated Name", "Updated Description");
+        _mockItemService.Setup(s => s.UpdateAsync(999, dto)).ReturnsAsync((ItemResponseDto?)null);
 
-            // Assert
-            result.Result.Should().BeOfType<NotFoundResult>();
-        }
+        // Act
+        var result = await _controller.Update(999, dto);
 
-        [Fact]
-        public void Delete_WithValidId_ShouldReturnNoContent()
-        {
-            // Arrange
-            var dto = new ItemCreate("To Delete", "Description");
-            var created = _repository.Create(dto);
+        // Assert
+        result.Result.Should().BeOfType<NotFoundResult>();
+        _mockItemService.Verify(s => s.UpdateAsync(999, dto), Times.Once);
+    }
 
-            // Act
-            var result = _controller.Delete(created.id);
+    [Fact]
+    public async Task Delete_WithValidId_ShouldReturnNoContent()
+    {
+        // Arrange
+        _mockItemService.Setup(s => s.DeleteAsync(1)).ReturnsAsync(true);
 
-            // Assert
-            result.Should().BeOfType<NoContentResult>();
-        }
+        // Act
+        var result = await _controller.Delete(1);
 
-        [Fact]
-        public void Delete_WithInvalidId_ShouldReturnNotFound()
-        {
-            // Act
-            var result = _controller.Delete(999);
+        // Assert
+        result.Should().BeOfType<NoContentResult>();
+        _mockItemService.Verify(s => s.DeleteAsync(1), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<NotFoundResult>();
-        }
+    [Fact]
+    public async Task Delete_WithInvalidId_ShouldReturnNotFound()
+    {
+        // Arrange
+        _mockItemService.Setup(s => s.DeleteAsync(999)).ReturnsAsync(false);
 
-        [Fact]
-        public void TestError_ShouldThrowException()
-        {
-            // Act & Assert
-            Assert.Throws<Exception>(() => _controller.TestError());
-        }
+        // Act
+        var result = await _controller.Delete(999);
+
+        // Assert
+        result.Should().BeOfType<NotFoundResult>();
+        _mockItemService.Verify(s => s.DeleteAsync(999), Times.Once);
+    }
+
+    [Fact]
+    public void TestError_ShouldThrowException()
+    {
+        // Act & Assert
+        Assert.Throws<Exception>(() => _controller.TestError());
     }
 }
-

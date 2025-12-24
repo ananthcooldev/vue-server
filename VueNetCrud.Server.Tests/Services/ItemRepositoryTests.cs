@@ -1,220 +1,188 @@
 using FluentAssertions;
-using VueNetCrud.Server.Models;
-using VueNetCrud.Server.Services;
+using VueNetCrud.Server.Domain.Entities;
+using VueNetCrud.Server.Infrastructure.Repositories;
 using Xunit;
 
-namespace VueNetCrud.Server.Tests.Services
+namespace VueNetCrud.Server.Tests.Services;
+
+public class ItemRepositoryTests
 {
-    public class ItemRepositoryTests
+    private readonly ItemRepository _repository;
+
+    public ItemRepositoryTests()
     {
-        private readonly ItemRepository _repository;
+        _repository = new ItemRepository();
+    }
 
-        public ItemRepositoryTests()
-        {
-            _repository = new ItemRepository();
-        }
+    [Fact]
+    public void GetAll_ShouldReturnEmptyList_WhenNoItems()
+    {
+        // Act
+        var result = _repository.GetAll();
 
-        [Fact]
-        public void GetAll_ShouldReturnEmptyList_WhenNoItems()
-        {
-            // Act
-            var result = _repository.GetAll();
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().BeEmpty();
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result.Should().BeEmpty();
-        }
+    [Fact]
+    public void GetById_WithInvalidId_ShouldReturnNull()
+    {
+        // Act
+        var result = _repository.GetById(999);
 
-        [Fact]
-        public void GetById_WithInvalidId_ShouldReturnNull()
-        {
-            // Act
-            var result = _repository.GetById(999);
+        // Assert
+        result.Should().BeNull();
+    }
 
-            // Assert
-            result.Should().BeNull();
-        }
+    [Fact]
+    public void Create_WithValidItem_ShouldCreateItem()
+    {
+        // Arrange
+        var item = new Item(0, "Test Item", "Test Description");
 
-        [Fact]
-        public void Create_WithValidDto_ShouldCreateItem()
-        {
-            // Arrange
-            var dto = new ItemCreate("Test Item", "Test Description");
+        // Act
+        var result = _repository.Create(item);
 
-            // Act
-            var result = _repository.Create(dto);
+        // Assert
+        result.Should().NotBeNull();
+        result.Id.Should().BeGreaterThan(0);
+        result.Name.Should().Be("Test Item");
+        result.Description.Should().Be("Test Description");
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result.id.Should().BeGreaterThan(0);
-            result.name.Should().Be("Test Item");
-            result.description.Should().Be("Test Description");
-        }
+    [Fact]
+    public void Create_ShouldAutoIncrementId()
+    {
+        // Arrange
+        var item1 = new Item(0, "Item 1", "Description 1");
+        var item2 = new Item(0, "Item 2", "Description 2");
 
-        [Fact]
-        public void Create_ShouldAutoIncrementId()
-        {
-            // Arrange
-            var dto1 = new ItemCreate("Item 1", "Description 1");
-            var dto2 = new ItemCreate("Item 2", "Description 2");
+        // Act
+        var result1 = _repository.Create(item1);
+        var result2 = _repository.Create(item2);
 
-            // Act
-            var result1 = _repository.Create(dto1);
-            var result2 = _repository.Create(dto2);
+        // Assert
+        result2.Id.Should().BeGreaterThan(result1.Id);
+    }
 
-            // Assert
-            result2.id.Should().BeGreaterThan(result1.id);
-        }
+    [Fact]
+    public void Create_ShouldTrimNameAndDescription()
+    {
+        // Arrange
+        var item = new Item(0, "  Test Item  ", "  Test Description  ");
 
-        [Fact]
-        public void Create_WithEmptyName_ShouldThrowArgumentException()
-        {
-            // Arrange
-            var dto = new ItemCreate("", "Description");
+        // Act
+        var result = _repository.Create(item);
 
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => _repository.Create(dto));
-        }
+        // Assert
+        // Note: Repository doesn't trim, service layer does
+        result.Name.Should().Be("  Test Item  ");
+        result.Description.Should().Be("  Test Description  ");
+    }
 
-        [Fact]
-        public void Create_WithWhitespaceName_ShouldThrowArgumentException()
-        {
-            // Arrange
-            var dto = new ItemCreate("   ", "Description");
+    [Fact]
+    public void Update_WithValidId_ShouldUpdateItem()
+    {
+        // Arrange
+        var item = new Item(0, "Original Name", "Original Description");
+        var created = _repository.Create(item);
+        var updatedItem = new Item(created.Id, "Updated Name", "Updated Description");
 
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => _repository.Create(dto));
-        }
+        // Act
+        var result = _repository.Update(created.Id, updatedItem);
 
-        [Fact]
-        public void Create_WithNullName_ShouldThrowArgumentException()
-        {
-            // Arrange
-            var dto = new ItemCreate(null!, "Description");
+        // Assert
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("Updated Name");
+        result.Description.Should().Be("Updated Description");
+    }
 
-            // Act & Assert
-            Assert.Throws<ArgumentException>(() => _repository.Create(dto));
-        }
+    [Fact]
+    public void Update_WithInvalidId_ShouldReturnNull()
+    {
+        // Arrange
+        var updatedItem = new Item(999, "Updated Name", "Updated Description");
 
-        [Fact]
-        public void Create_ShouldTrimNameAndDescription()
-        {
-            // Arrange
-            var dto = new ItemCreate("  Test Item  ", "  Test Description  ");
+        // Act
+        var result = _repository.Update(999, updatedItem);
 
-            // Act
-            var result = _repository.Create(dto);
+        // Assert
+        result.Should().BeNull();
+    }
 
-            // Assert
-            result.name.Should().Be("Test Item");
-            result.description.Should().Be("Test Description");
-        }
+    [Fact]
+    public void Update_WithEmptyName_ShouldUpdate()
+    {
+        // Arrange
+        var item = new Item(0, "Original Name", "Original Description");
+        var created = _repository.Create(item);
+        var updatedItem = new Item(created.Id, "", "Updated Description");
 
-        [Fact]
-        public void Update_WithValidId_ShouldUpdateItem()
-        {
-            // Arrange
-            var createDto = new ItemCreate("Original Name", "Original Description");
-            var created = _repository.Create(createDto);
-            var updateDto = new ItemUpdate("Updated Name", "Updated Description");
+        // Act
+        var result = _repository.Update(created.Id, updatedItem);
 
-            // Act
-            var result = _repository.Update(created.id, updateDto);
+        // Assert
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("");
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result!.name.Should().Be("Updated Name");
-            result.description.Should().Be("Updated Description");
-        }
+    [Fact]
+    public void Update_ShouldUpdateValues()
+    {
+        // Arrange
+        var item = new Item(0, "Original Name", "Original Description");
+        var created = _repository.Create(item);
+        var updatedItem = new Item(created.Id, "  Updated Name  ", "  Updated Description  ");
 
-        [Fact]
-        public void Update_WithInvalidId_ShouldReturnNull()
-        {
-            // Arrange
-            var updateDto = new ItemUpdate("Updated Name", "Updated Description");
+        // Act
+        var result = _repository.Update(created.Id, updatedItem);
 
-            // Act
-            var result = _repository.Update(999, updateDto);
+        // Assert
+        result.Should().NotBeNull();
+        result!.Name.Should().Be("  Updated Name  ");
+        result.Description.Should().Be("  Updated Description  ");
+    }
 
-            // Assert
-            result.Should().BeNull();
-        }
+    [Fact]
+    public void Delete_WithValidId_ShouldReturnTrue()
+    {
+        // Arrange
+        var item = new Item(0, "To Delete", "Description");
+        var created = _repository.Create(item);
 
-        [Fact]
-        public void Update_WithEmptyName_ShouldKeepOriginalName()
-        {
-            // Arrange
-            var createDto = new ItemCreate("Original Name", "Original Description");
-            var created = _repository.Create(createDto);
-            var updateDto = new ItemUpdate("", "Updated Description");
+        // Act
+        var result = _repository.Delete(created.Id);
 
-            // Act
-            var result = _repository.Update(created.id, updateDto);
+        // Assert
+        result.Should().BeTrue();
+        _repository.GetById(created.Id).Should().BeNull();
+    }
 
-            // Assert
-            result.Should().NotBeNull();
-            result!.name.Should().Be("Original Name");
-            result.description.Should().Be("Updated Description");
-        }
+    [Fact]
+    public void Delete_WithInvalidId_ShouldReturnFalse()
+    {
+        // Act
+        var result = _repository.Delete(999);
 
-        [Fact]
-        public void Update_ShouldTrimValues()
-        {
-            // Arrange
-            var createDto = new ItemCreate("Original Name", "Original Description");
-            var created = _repository.Create(createDto);
-            var updateDto = new ItemUpdate("  Updated Name  ", "  Updated Description  ");
+        // Assert
+        result.Should().BeFalse();
+    }
 
-            // Act
-            var result = _repository.Update(created.id, updateDto);
+    [Fact]
+    public void GetAll_ShouldReturnCreatedItems()
+    {
+        // Arrange
+        var item1 = new Item(0, "Item 1", "Description 1");
+        var item2 = new Item(0, "Item 2", "Description 2");
+        var created1 = _repository.Create(item1);
+        var created2 = _repository.Create(item2);
 
-            // Assert
-            result.Should().NotBeNull();
-            result!.name.Should().Be("Updated Name");
-            result.description.Should().Be("Updated Description");
-        }
+        // Act
+        var result = _repository.GetAll();
 
-        [Fact]
-        public void Delete_WithValidId_ShouldReturnTrue()
-        {
-            // Arrange
-            var createDto = new ItemCreate("To Delete", "Description");
-            var created = _repository.Create(createDto);
-
-            // Act
-            var result = _repository.Delete(created.id);
-
-            // Assert
-            result.Should().BeTrue();
-            _repository.GetById(created.id).Should().BeNull();
-        }
-
-        [Fact]
-        public void Delete_WithInvalidId_ShouldReturnFalse()
-        {
-            // Act
-            var result = _repository.Delete(999);
-
-            // Assert
-            result.Should().BeFalse();
-        }
-
-        [Fact]
-        public void GetAll_ShouldReturnCreatedItems()
-        {
-            // Arrange
-            var dto1 = new ItemCreate("Item 1", "Description 1");
-            var dto2 = new ItemCreate("Item 2", "Description 2");
-            var created1 = _repository.Create(dto1);
-            var created2 = _repository.Create(dto2);
-
-            // Act
-            var result = _repository.GetAll();
-
-            // Assert
-            result.Should().Contain(i => i.id == created1.id);
-            result.Should().Contain(i => i.id == created2.id);
-        }
+        // Assert
+        result.Should().Contain(i => i.Id == created1.Id);
+        result.Should().Contain(i => i.Id == created2.Id);
     }
 }
-

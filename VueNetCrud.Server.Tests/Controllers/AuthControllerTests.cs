@@ -1,114 +1,71 @@
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
+using VueNetCrud.Server.Application.DTOs;
+using VueNetCrud.Server.Application.Interfaces;
 using VueNetCrud.Server.Controllers;
 using Xunit;
 
-namespace VueNetCrud.Server.Tests.Controllers
+namespace VueNetCrud.Server.Tests.Controllers;
+
+public class AuthControllerTests
 {
-    public class AuthControllerTests
+    private readonly Mock<IAuthService> _mockAuthService;
+    private readonly Mock<ILogger<AuthController>> _mockLogger;
+    private readonly AuthController _controller;
+
+    public AuthControllerTests()
     {
-        private readonly Mock<IConfiguration> _mockConfig;
-        private readonly Mock<IConfigurationSection> _mockJwtSection;
-        private readonly AuthController _controller;
+        _mockAuthService = new Mock<IAuthService>();
+        _mockLogger = new Mock<ILogger<AuthController>>();
+        _controller = new AuthController(_mockAuthService.Object, _mockLogger.Object);
+    }
 
-        public AuthControllerTests()
-        {
-            _mockConfig = new Mock<IConfiguration>();
-            _mockJwtSection = new Mock<IConfigurationSection>();
+    [Fact]
+    public void Options_ShouldReturnOk()
+    {
+        // Act
+        var result = _controller.Options();
 
-            _mockJwtSection.Setup(x => x["Key"]).Returns("ThisIsASecretKeyForJwtTokenGeneration123456");
-            _mockJwtSection.Setup(x => x["Issuer"]).Returns("TestIssuer");
-            _mockJwtSection.Setup(x => x["Audience"]).Returns("TestAudience");
+        // Assert
+        result.Should().BeOfType<OkResult>();
+    }
 
-            _mockConfig.Setup(x => x.GetSection("Jwt")).Returns(_mockJwtSection.Object);
+    [Fact]
+    public async Task Login_WithValidCredentials_ShouldReturnOkWithToken()
+    {
+        // Arrange
+        var request = new LoginRequestDto("admin", "123");
+        var response = new LoginResponseDto("test-token-123");
+        _mockAuthService.Setup(s => s.LoginAsync(request)).ReturnsAsync(response);
 
-            _controller = new AuthController(_mockConfig.Object);
-        }
+        // Act
+        var result = await _controller.Login(request);
 
-        [Fact]
-        public void Options_ShouldReturnOk()
-        {
-            // Act
-            var result = _controller.Options();
+        // Assert
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.Value.Should().BeOfType<LoginResponseDto>();
+        var loginResponse = okResult.Value as LoginResponseDto;
+        loginResponse!.Token.Should().Be("test-token-123");
+        _mockAuthService.Verify(s => s.LoginAsync(request), Times.Once);
+    }
 
-            // Assert
-            result.Should().BeOfType<OkResult>();
-        }
+    [Fact]
+    public async Task Login_WithInvalidCredentials_ShouldReturnUnauthorized()
+    {
+        // Arrange
+        var request = new LoginRequestDto("invalid", "wrong");
+        _mockAuthService.Setup(s => s.LoginAsync(request)).ReturnsAsync((LoginResponseDto?)null);
 
-        [Fact]
-        public void Login_WithValidCredentials_ShouldReturnOkWithToken()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "admin",
-                Password = "123"
-            };
+        // Act
+        var result = await _controller.Login(request);
 
-            // Act
-            var result = _controller.Login(loginModel);
-
-            // Assert
-            result.Should().BeOfType<OkObjectResult>();
-            var okResult = result as OkObjectResult;
-            okResult!.Value.Should().NotBeNull();
-            
-            // Use reflection to access the token property from anonymous object
-            var valueType = okResult.Value!.GetType();
-            var tokenProperty = valueType.GetProperty("token");
-            Assert.NotNull(tokenProperty);
-            var tokenValue = tokenProperty.GetValue(okResult.Value);
-            Assert.NotNull(tokenValue);
-            Assert.NotEmpty(tokenValue.ToString()!);
-        }
-
-        [Fact]
-        public void Login_WithInvalidUsername_ShouldReturnUnauthorized()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "invalid",
-                Password = "123"
-            };
-
-            // Act
-            var result = _controller.Login(loginModel);
-
-            // Assert
-            result.Should().BeOfType<UnauthorizedObjectResult>();
-            var unauthorizedResult = result as UnauthorizedObjectResult;
-            unauthorizedResult!.Value.Should().Be("Invalid credentials");
-        }
-
-        [Fact]
-        public void Login_WithInvalidPassword_ShouldReturnUnauthorized()
-        {
-            // Arrange
-            var loginModel = new LoginModel
-            {
-                Username = "admin",
-                Password = "wrongpassword"
-            };
-
-            // Act
-            var result = _controller.Login(loginModel);
-
-            // Assert
-            result.Should().BeOfType<UnauthorizedObjectResult>();
-            var unauthorizedResult = result as UnauthorizedObjectResult;
-            unauthorizedResult!.Value.Should().Be("Invalid credentials");
-        }
-
-        [Fact]
-        public void Login_WithNullModel_ShouldThrowNullReferenceException()
-        {
-            // Act & Assert
-            Assert.Throws<NullReferenceException>(() => _controller.Login(null!));
-        }
+        // Assert
+        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorizedResult = result as UnauthorizedObjectResult;
+        unauthorizedResult!.Value.Should().Be("Invalid credentials");
+        _mockAuthService.Verify(s => s.LoginAsync(request), Times.Once);
     }
 }
-
